@@ -42,7 +42,23 @@ db.exec(`
     (1, 'REEL 01', 'pick a vibe'),
     (2, 'REEL 02', 'pick a vibe'),
     (3, 'REEL 03', 'pick a vibe');
+  CREATE TABLE IF NOT EXISTS projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    desc TEXT NOT NULL DEFAULT '',
+    tags TEXT NOT NULL DEFAULT '[]',
+    live TEXT NOT NULL DEFAULT '#',
+    code TEXT NOT NULL DEFAULT '#',
+    sort INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
+if (!db.prepare('SELECT COUNT(*) AS c FROM projects').get().c) {
+  const ins = db.prepare('INSERT INTO projects (title, desc, tags, live, code, sort) VALUES (?, ?, ?, ?, ?, ?)');
+  ins.run('Password Saver', 'Browser extension that generates and stores strong passwords locally. No cloud, no tracking — your vault never leaves the device.', JSON.stringify(['Extension', 'JavaScript', 'Security']), '#', '#', 1);
+  ins.run('FLUX Engine', 'Real-time WebGL particle system — 22k GPU particles morphing between shapes, driven by scroll and cursor.', JSON.stringify(['Three.js', 'WebGL', 'Creative']), '#', '#', 2);
+  ins.run('Project Three', 'Short description of your next project. Replace this card with something real.', JSON.stringify(['Web', 'Design']), '#', '#', 3);
+}
 
 // ---- Sessions (in-memory) ----
 const sessions = new Map(); // token -> expiresAt
@@ -164,6 +180,42 @@ async function resolveReel(url) {
   }
   throw new Error('Could not fetch video from that link. Instagram often blocks servers — download the reel as MP4 and paste a direct link instead.');
 }
+
+// ---- Projects APIs ----
+function parseProject(r) {
+  let tags = [];
+  try { tags = JSON.parse(r.tags || '[]'); } catch { /* keep [] */ }
+  return { id: r.id, title: r.title, desc: r.desc, tags: Array.isArray(tags) ? tags : [], live: r.live, code: r.code };
+}
+app.get('/api/projects', (req, res) => {
+  const rows = db.prepare('SELECT * FROM projects ORDER BY sort ASC, id ASC').all();
+  res.json(rows.map(parseProject));
+});
+app.post('/api/admin/projects', requireAdmin, (req, res) => {
+  const b = req.body || {};
+  if (!String(b.title || '').trim()) return res.status(400).json({ error: 'title required' });
+  const tags = Array.isArray(b.tags) ? b.tags : String(b.tags || '').split(',').map((t) => t.trim()).filter(Boolean);
+  const r = db.prepare('INSERT INTO projects (title, desc, tags, live, code, sort) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(String(b.title).slice(0, 80), String(b.desc || '').slice(0, 500), JSON.stringify(tags.slice(0, 8)),
+      String(b.live || '#').slice(0, 300), String(b.code || '#').slice(0, 300), Number(b.sort) || 0);
+  res.json({ ok: true, id: Number(r.lastInsertRowid) });
+});
+app.put('/api/admin/projects/:id', requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const cur = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!cur) return res.status(404).json({ error: 'not found' });
+  const tags = b.tags === undefined ? cur.tags
+    : JSON.stringify((Array.isArray(b.tags) ? b.tags : String(b.tags || '').split(',').map((t) => t.trim()).filter(Boolean)).slice(0, 8));
+  db.prepare('UPDATE projects SET title = ?, desc = ?, tags = ?, live = ?, code = ?, sort = ? WHERE id = ?').run(
+    String(b.title ?? cur.title).slice(0, 80), String(b.desc ?? cur.desc).slice(0, 500), tags,
+    String(b.live ?? cur.live).slice(0, 300), String(b.code ?? cur.code).slice(0, 300),
+    b.sort === undefined ? cur.sort : (Number(b.sort) || 0), req.params.id);
+  res.json({ ok: true });
+});
+app.delete('/api/admin/projects/:id', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM projects WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
 
 // ---- Reels APIs ----
 app.get('/api/reels', (req, res) => {

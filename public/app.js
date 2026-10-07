@@ -26,9 +26,105 @@ const loadInt = setInterval(() => {
   }
 }, 120);
 
+/* ============ GSAP setup ============ */
+if (window.gsap && window.ScrollTrigger) {
+  gsap.registerPlugin(ScrollTrigger);
+}
+function revealUp(el, delay = 0) {
+  if (!window.gsap || !window.ScrollTrigger) { el.style.opacity = 1; return; }
+  gsap.fromTo(el, { y: 46, opacity: 0 }, {
+    y: 0, opacity: 1, duration: 1, delay, ease: 'power3.out',
+    scrollTrigger: { trigger: el, start: 'top 88%', once: true },
+  });
+}
+function initScrollAnims() {
+  if (!window.gsap || !window.ScrollTrigger) {
+    document.body.classList.add('no-anim');
+    return;
+  }
+  // section headers + generic reveals
+  gsap.utils.toArray('main section').forEach((sec) => {
+    const heads = sec.querySelectorAll('h2, .sec-head');
+    heads.forEach((h, i) => revealUp(h, i * 0.08));
+  });
+  gsap.utils.toArray('.glass-card').forEach((el) => revealUp(el));
+  // hero parallax drift
+  const hero = $('#hero');
+  if (hero) {
+    gsap.to(hero, {
+      yPercent: 12, opacity: 0.25, ease: 'none',
+      scrollTrigger: { trigger: hero, start: 'top top', end: 'bottom top', scrub: true },
+    });
+  }
+  // hero intro — plays when the game onboarding completes
+  window.addEventListener('flux:entered', () => {
+    gsap.fromTo('.hero > *',
+      { y: 60, opacity: 0 },
+      { y: 0, opacity: 1, duration: 1.1, stagger: 0.1, ease: 'power3.out', delay: 0.35 });
+  }, { once: true });
+}
+initScrollAnims();
+
+/* ============ custom cursor ============ */
+(function cursor() {
+  if (matchMedia('(hover: none)').matches) return;
+  const dot = $('#cursorDot'), ring = $('#cursorRing');
+  let mx = innerWidth / 2, my = innerHeight / 2, rx = mx, ry = my;
+  addEventListener('mousemove', (e) => {
+    mx = e.clientX; my = e.clientY;
+    dot.style.transform = `translate(${mx}px, ${my}px) translate(-50%,-50%)`;
+  });
+  (function follow() {
+    rx = lerp(rx, mx, 0.16); ry = lerp(ry, my, 0.16);
+    ring.style.transform = `translate(${rx}px, ${ry}px) translate(-50%,-50%)`;
+    requestAnimationFrame(follow);
+  })();
+  const hoverSel = 'a, button, input, textarea, .card, .ava-card, .song-card, .dock-btn, #companion';
+  document.addEventListener('mouseover', (e) => {
+    if (e.target.closest(hoverSel)) ring.classList.add('grow');
+  });
+  document.addEventListener('mouseout', (e) => {
+    if (e.target.closest(hoverSel)) ring.classList.remove('grow');
+  });
+})();
+
+/* ============ magnetic buttons ============ */
+if (window.gsap && matchMedia('(hover: hover)').matches) {
+  $$('.btn-lime, .dock-btn, #playerbar button').forEach((el) => {
+    el.addEventListener('mousemove', (e) => {
+      const r = el.getBoundingClientRect();
+      gsap.to(el, {
+        x: (e.clientX - r.left - r.width / 2) * 0.28,
+        y: (e.clientY - r.top - r.height / 2) * 0.28,
+        duration: 0.4, ease: 'power3.out',
+      });
+    });
+    el.addEventListener('mouseleave', () => {
+      gsap.to(el, { x: 0, y: 0, duration: 0.7, ease: 'elastic.out(1, 0.4)' });
+    });
+  });
+}
+
+/* ============ social dock: copy discord ============ */
+$$('#socialDock [data-copy]').forEach((b) => {
+  b.addEventListener('click', async () => {
+    const v = b.dataset.copy;
+    try { await navigator.clipboard.writeText(v); }
+    catch {
+      const ta = document.createElement('textarea');
+      ta.value = v; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove();
+    }
+    toast('Discord handle copied: ' + v);
+  });
+});
+
 /* ============ smooth scroll ============ */
 if (window.Lenis) {
   const lenis = new Lenis({ lerp: 0.09 });
+  window.__lenis = lenis;
+  // keep ScrollTrigger in sync with Lenis
+  if (window.gsap && window.ScrollTrigger) lenis.on('scroll', () => window.ScrollTrigger.update());
   const raf = (t) => { lenis.raf(t); requestAnimationFrame(raf); };
   requestAnimationFrame(raf);
   // anchor links through lenis
@@ -197,14 +293,15 @@ const mat = new THREE.ShaderMaterial({
     varying float vRand;
     void main() {
       vec3 p = mix(position, aTarget, uMorph);
-      float t = uTime * 0.6;
-      float n = sin(p.x * 2.1 + t) * sin(p.y * 1.7 + t * 1.3) * sin(p.z * 2.4 + t * 0.8);
-      float amp = (0.16 + uEnergy * 0.55 + aRand * 0.06) * (1.0 - uIcon * 0.72);
+      // calm, natural drift — slow and soft
+      float t = uTime * 0.35;
+      float n = sin(p.x * 1.6 + t) * sin(p.y * 1.3 + t * 1.2) * sin(p.z * 1.8 + t * 0.7);
+      float amp = (0.085 + uEnergy * 0.4 + aRand * 0.035) * (1.0 - uIcon * 0.72);
       p += normalize(p + 0.0001) * n * amp;
       vGlow = smoothstep(-0.6, 0.9, n);
       vRand = aRand;
       vec4 mv = modelViewMatrix * vec4(p, 1.0);
-      gl_PointSize = (1.4 + vGlow * 2.6 + aRand * 1.2) * uPixelRatio * (9.0 / -mv.z);
+      gl_PointSize = (1.5 + vGlow * 2.2 + aRand * 1.0) * uPixelRatio * (9.0 / -mv.z);
       gl_Position = projectionMatrix * mv;
     }`,
   fragmentShader: `
@@ -217,10 +314,10 @@ const mat = new THREE.ShaderMaterial({
       float d = length(uv);
       if (d > 0.5) discard;
       float soft = smoothstep(0.5, 0.04, d);
-      // gentle twinkle
-      float tw = 0.78 + 0.22 * sin(uTime * 2.6 + vRand * 43.0);
+      // soft, slow shimmer — barely-there twinkle
+      float tw = 0.88 + 0.12 * sin(uTime * 1.8 + vRand * 43.0);
       vec3 col = mix(uColorA, uColorB, vGlow * 0.85 + vRand * 0.15);
-      gl_FragColor = vec4(col, soft * 0.78 * tw);
+      gl_FragColor = vec4(col, soft * 0.7 * tw);
     }`,
 });
 
@@ -280,8 +377,8 @@ let shotFrames = 0;
   uniforms.uColorB.value.lerpColors(baseB, limeB, glow);
   uniforms.uIcon.value = glow;
 
-  group.rotation.y = (t * 0.12 + mx * 0.35) * (1 - glow) + mx * 0.1 * glow;
-  group.rotation.x = my * 0.25 * (1 - glow * 0.6);
+  group.rotation.y = (t * 0.07 + mx * 0.35) * (1 - glow) + mx * 0.1 * glow;
+  group.rotation.x = my * 0.22 * (1 - glow * 0.6);
   // in the contact zone the icon slides beside the card (above it on mobile)
   const mob = innerWidth < 760;
   group.position.x = lerp(group.position.x, glow * (mob ? 0 : 2.8), 0.08);
@@ -298,12 +395,10 @@ addEventListener('resize', () => {
   uniforms.uPixelRatio.value = Math.min(devicePixelRatio, 2);
 });
 
-/* ============ projects ============ */
-(function renderProjects() {
-  const grid = $('#projectGrid');
-  const list = window.PROJECTS || [];
-  grid.innerHTML = list.map((p) => `
-    <div class="card">
+/* ============ projects (from API, fallback to static) ============ */
+function projectCard(p) {
+  return `
+    <div class="card reveal">
       <h3>${esc(p.title)}</h3>
       <p>${esc(p.desc)}</p>
       <div class="tags">${(p.tags || []).map((t) => `<span>${esc(t)}</span>`).join('')}</div>
@@ -311,8 +406,20 @@ addEventListener('resize', () => {
         ${p.live && p.live !== '#' ? `<a href="${esc(p.live)}" target="_blank" rel="noopener">Live ↗</a>` : ''}
         ${p.code && p.code !== '#' ? `<a href="${esc(p.code)}" target="_blank" rel="noopener">Code ↗</a>` : ''}
       </div>
-    </div>`).join('');
-})();
+    </div>`;
+}
+async function renderProjects() {
+  const grid = $('#projectGrid');
+  let list = [];
+  try {
+    const r = await fetch('/api/projects');
+    if (r.ok) list = await r.json();
+  } catch { /* fallback below */ }
+  if (!list.length) list = window.PROJECTS || [];
+  grid.innerHTML = list.map(projectCard).join('');
+  if (window.gsap) gsap.utils.toArray('#projectGrid .reveal').forEach((el) => revealUp(el));
+}
+renderProjects();
 
 /* ============ visit counter ============ */
 fetch('/api/visit', { method: 'POST' })
@@ -393,7 +500,9 @@ $$('.tabs button').forEach((b) => b.addEventListener('click', () => {
   $('#tab-inbox').hidden = b.dataset.tab !== 'inbox';
   $('#tab-stats').hidden = b.dataset.tab !== 'stats';
   $('#tab-reels').hidden = b.dataset.tab !== 'reels';
+  $('#tab-projects').hidden = b.dataset.tab !== 'projects';
   if (b.dataset.tab === 'reels') loadReels();
+  if (b.dataset.tab === 'projects') loadProjectsAdmin();
 }));
 
 /* ---------- admin: reels ---------- */
@@ -466,6 +575,68 @@ $('#saveReels').addEventListener('click', async () => {
       body: JSON.stringify({ reels }),
     });
     toast('Reels saved ✓');
+  } catch (e) { toast('Save failed: ' + e.message); }
+});
+
+/* ---------- admin: projects ---------- */
+let editingProj = null;
+async function loadProjectsAdmin() {
+  const wrap = $('#projList');
+  wrap.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    const rows = await api('/api/projects');
+    wrap.innerHTML = rows.map((p) => `
+      <div class="reel-slot" data-id="${p.id}">
+        <h4>${esc(p.title)}</h4>
+        <p class="muted" style="font-size:.85rem">${esc(p.desc)}</p>
+        <div class="row gap">
+          <button class="ghost p-edit">Edit</button>
+          <button class="ghost p-del">Delete</button>
+        </div>
+      </div>`).join('') || '<p class="muted">No projects yet.</p>';
+    wrap.querySelectorAll('.reel-slot').forEach((d) => {
+      const id = Number(d.dataset.id);
+      d.querySelector('.p-edit').addEventListener('click', async () => {
+        const rows = await api('/api/projects');
+        const p = rows.find((x) => x.id === id);
+        if (!p) return;
+        editingProj = id;
+        $('#projFormTitle').textContent = 'EDIT PROJECT';
+        $('#pTitle').value = p.title; $('#pDesc').value = p.desc;
+        $('#pTags').value = (p.tags || []).join(', ');
+        $('#pLive').value = p.live; $('#pCode').value = p.code;
+        $('#projSave').textContent = 'Save changes';
+        $('#projCancel').hidden = false;
+      });
+      d.querySelector('.p-del').addEventListener('click', async () => {
+        if (!confirm('Delete this project?')) return;
+        await api('/api/admin/projects/' + id, { method: 'DELETE' });
+        loadProjectsAdmin(); renderProjects(); toast('Deleted');
+      });
+    });
+  } catch (e) { wrap.innerHTML = `<p class="muted">Failed: ${e.message}</p>`; }
+}
+function resetProjForm() {
+  editingProj = null;
+  $('#projFormTitle').textContent = 'ADD PROJECT';
+  ['#pTitle', '#pDesc', '#pTags', '#pLive', '#pCode'].forEach((s) => { $(s).value = ''; });
+  $('#projSave').textContent = 'Add project';
+  $('#projCancel').hidden = true;
+}
+$('#projCancel').addEventListener('click', resetProjForm);
+$('#projSave').addEventListener('click', async () => {
+  const body = {
+    title: $('#pTitle').value.trim(),
+    desc: $('#pDesc').value.trim(),
+    tags: $('#pTags').value,
+    live: $('#pLive').value.trim() || '#',
+    code: $('#pCode').value.trim() || '#',
+  };
+  if (!body.title) return toast('Title required');
+  try {
+    if (editingProj) await api('/api/admin/projects/' + editingProj, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    else await api('/api/admin/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    resetProjForm(); loadProjectsAdmin(); renderProjects(); toast('Saved ✓');
   } catch (e) { toast('Save failed: ' + e.message); }
 });
 
