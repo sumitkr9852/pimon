@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sumit — Creative Developer</title>
+<meta name="description" content="Sumit builds interactive things for the web.">
+<link rel="stylesheet" href="/vendor/fonts.css">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": { "three": "/vendor/three.module.js" } }
+</script>
+</head>
+<body>
+
+<div id="loader"><span id="loadPct">00</span></div>
+<div class="bg-glow g1"></div>
+<div class="bg-glow g2"></div>
+<div class="grain"></div>
+<div class="cursor" id="cursor"></div>
+<canvas id="scene"></canvas>
+
+<header class="nav">
+  <a class="logo" href="#top">SUMIT<span class="dot">.</span></a>
+  <nav class="links">
+    <a href="#projects">Projects</a>
+    <a href="#contact-ig">Contact</a>
+  </nav>
+  <div class="visits"><span id="visitCount">—</span> visits</div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <p class="kicker">Creative developer</p>
+    <h1>SUMIT</h1>
+    <p class="sub">I build interactive things for the web.<br>Scroll — the void will introduce itself.</p>
+    <div class="scroll-hint"><span></span></div>
+  </section>
+
+  <section class="projects" id="projects">
+    <p class="kicker">Selected work</p>
+    <h2>Projects</h2>
+    <div class="grid" id="projectGrid"></div>
+    <p class="note">More cooking. This list grows — check back.</p>
+  </section>
+
+  <section class="contact-ig" id="contact-ig">
+    <div class="glass-card">
+      <p class="kicker lime">Find me</p>
+      <h2>Instagram</h2>
+      <p class="handle">@znc.raiden</p>
+      <a class="btn-lime" href="https://www.instagram.com/znc.raiden/" target="_blank" rel="noopener">Follow →</a>
+    </div>
+  </section>
+
+  <section class="contact-gmail" id="contact-gmail">
+    <div class="glass-card">
+      <p class="kicker lime">Say hello</p>
+      <h2>Gmail</h2>
+      <p class="handle">sumitkr985299@gmail.com
+        <button class="copy" id="copyEmail" title="Copy email">⧉</button>
+      </p>
+      <form id="contactForm">
+        <input id="cName" maxlength="40" placeholder="Your name" autocomplete="off" required>
+        <input id="cEmail" maxlength="80" type="email" placeholder="Your email" autocomplete="off" required>
+        <textarea id="cMsg" maxlength="1000" rows="3" placeholder="Your message…" required></textarea>
+        <button type="submit">Send message →</button>
+      </form>
+      <p class="form-ok" id="formOk" hidden>Message received. I'll get back to you.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>SUMIT © 2026</span>
+  <span>three.js · node · sqlite</span>
+  <button class="admin-link" id="adminOpen">Admin</button>
+</footer>
+
+<!-- Admin login modal -->
+<div class="modal" id="loginModal" hidden>
+  <div class="modal-box">
+    <h3>Admin login</h3>
+    <input id="aUser" placeholder="Username" autocomplete="username">
+    <input id="aPass" type="password" placeholder="Password" autocomplete="current-password">
+    <p class="err" id="loginErr" hidden></p>
+    <div class="row">
+      <button id="loginGo" class="btn-lime">Log in</button>
+      <button id="loginCancel" class="ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin dashboard -->
+<div class="admin" id="adminPanel" hidden>
+  <div class="admin-head">
+    <h3>Dashboard</h3>
+    <div class="row">
+      <div class="tabs">
+        <button data-tab="inbox" class="active">Inbox <span id="unreadBadge"></span></button>
+        <button data-tab="stats">Stats</button>
+        <button data-tab="reels">Reels</button>
+      </div>
+      <button id="logoutBtn" class="ghost">Log out</button>
+      <button id="adminClose" class="ghost">✕</button>
+    </div>
+  </div>
+  <div class="tab-page" id="tab-inbox"><ul id="inboxList"><li class="muted">Loading…</li></ul></div>
+  <div class="tab-page" id="tab-stats" hidden>
+    <div class="stat-cards" id="statCards"></div>
+  </div>
+  <div class="tab-page" id="tab-reels" hidden>
+    <p class="muted" style="margin-bottom:1rem">Paste an Instagram reel link and hit <b>Fetch</b> — the server will try to grab the video. If Instagram blocks it, download the reel as MP4 and paste a direct link (or upload to <code>public/reels/</code> and use <code>/reels/name.mp4</code>).</p>
+    <div id="reelSlots"></div>
+    <button class="btn-lime" id="saveReels">Save reels</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<!-- ======== GAME-STYLE ONBOARDING ======== -->
+<div id="onboard">
+  <div class="ob-stage" id="ob-enter">
+    <p class="kicker lime">a personal dimension</p>
+    <h1 class="ob-title">SUMIT<span class="dot">.</span></h1>
+    <p class="ob-sub">This site plays better with sound on.</p>
+    <button class="btn-lime big" id="enterGo">Click to enter →</button>
+    <button class="ghost ob-continue" id="enterContinue" hidden></button>
+  </div>
+
+  <div class="ob-stage" id="ob-avatar" hidden>
+    <p class="kicker lime">step 01 — identity</p>
+    <h2>Choose your fighter</h2>
+    <div class="ava-grid" id="avaGrid"></div>
+    <input id="obName" maxlength="24" placeholder="Your name (optional)" autocomplete="off">
+    <div class="nicks" id="nickRow"></div>
+    <div class="row gap">
+      <button class="ghost" id="obBack">← Back</button>
+      <button class="btn-lime" id="toSong">Continue →</button>
+    </div>
+    <p class="ob-hint">Skip the name and fate decides — you might become "Key Limmi".</p>
+  </div>
+
+  <div class="ob-stage" id="ob-song" hidden>
+    <p class="kicker lime">step 02 — vibe</p>
+    <h2>Pick your soundtrack</h2>
+    <p class="ob-sub">Tap a reel — its sound plays throughout the site. Mute anytime.</p>
+    <div class="song-grid" id="songGrid"></div>
+  </div>
+</div>
+
+<!-- avatar companion -->
+<div id="companion" hidden>
+  <canvas id="compCanvas" width="150" height="150"></canvas>
+  <div id="compLabel"></div>
+</div>
+
+<!-- audio toggle -->
+<button id="audioToggle" hidden title="Toggle sound">♪</button>
+
+<script src="/vendor/lenis.min.js"></script>
+<script src="projects.js"></script>
+<script type="module" src="intro.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
